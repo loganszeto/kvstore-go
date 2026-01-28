@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/loganszeto/vulnkv/internal/protocol"
+	"github.com/loganszeto/kvstore-go/internal/protocol"
 )
 
 func TestConcurrency(t *testing.T) {

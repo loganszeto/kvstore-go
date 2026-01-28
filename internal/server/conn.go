@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/loganszeto/vulnkv/internal/protocol"
+	"github.com/loganszeto/kvstore-go/internal/protocol"
 )
 
 func (s *Server) handleConn(c net.Conn) {

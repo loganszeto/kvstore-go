@@ -3,9 +3,9 @@ package server
 import (
 	"sort"
 
-	"github.com/loganszeto/vulnkv/internal/persistence"
-	"github.com/loganszeto/vulnkv/internal/protocol"
-	"github.com/loganszeto/vulnkv/internal/store"
+	"github.com/loganszeto/kvstore-go/internal/persistence"
+	"github.com/loganszeto/kvstore-go/internal/protocol"
+	"github.com/loganszeto/kvstore-go/internal/store"
 )
 
 func (s *Server) dispatch(req protocol.Request) protocol.Response {

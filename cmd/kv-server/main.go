@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/loganszeto/vulnkv/internal/persistence"
-	"github.com/loganszeto/vulnkv/internal/server"
-	"github.com/loganszeto/vulnkv/internal/stats"
-	"github.com/loganszeto/vulnkv/internal/store"
+	"github.com/loganszeto/kvstore-go/internal/persistence"
+	"github.com/loganszeto/kvstore-go/internal/server"
+	"github.com/loganszeto/kvstore-go/internal/stats"
+	"github.com/loganszeto/kvstore-go/internal/store"
 )
 
 func main() {

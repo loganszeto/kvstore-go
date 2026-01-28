@@ -1,3 +1,3 @@
-module github.com/loganszeto/vulnkv
+module github.com/loganszeto/kvstore-go
 
 go 1.22

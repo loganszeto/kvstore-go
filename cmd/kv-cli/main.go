@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/loganszeto/vulnkv/internal/protocol"
+	"github.com/loganszeto/kvstore-go/internal/protocol"
 )
 
 func main() {

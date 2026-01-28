@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/loganszeto/vulnkv/internal/protocol"
+	"github.com/loganszeto/kvstore-go/internal/protocol"
 )
 
 func startServer(t *testing.T, dataDir string) (addr string, stop func()) {

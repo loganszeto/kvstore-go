@@ -3,7 +3,7 @@ package persistence
 import (
 	"errors"
 
-	"github.com/loganszeto/vulnkv/internal/store"
+	"github.com/loganszeto/kvstore-go/internal/store"
 )
 
 var ErrSnapshotUnsupported = errors.New("snapshot not implemented")

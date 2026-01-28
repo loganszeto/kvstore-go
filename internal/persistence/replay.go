@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/loganszeto/vulnkv/internal/store"
+	"github.com/loganszeto/kvstore-go/internal/store"
 )
 
 func Replay(walPath string, st store.Store) error {
