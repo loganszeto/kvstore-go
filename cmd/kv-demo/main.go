@@ -16,6 +16,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gorilla/websocket"
+	"google.golang.org/api/googleapi"
 
 	"github.com/loganszeto/kvstore-go/internal/persistence"
 	"github.com/loganszeto/kvstore-go/internal/protocol"
@@ -35,22 +36,24 @@ func main() {
 	bucket := os.Getenv("KV_DEMO_BUCKET")
 	object := getenv("KV_DEMO_OBJECT", defaultObject)
 
-	if bucket == "" {
-		log.Fatal("KV_DEMO_BUCKET is required for persistence")
-	}
-
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		log.Fatalf("data dir: %v", err)
 	}
 
 	ctx := context.Background()
-	gcs, err := newGCSWAL(ctx, bucket, object)
-	if err != nil {
-		log.Fatalf("gcs client: %v", err)
+	var uploader walUploader = noopUploader{}
+	if bucket == "" {
+		log.Printf("KV_DEMO_BUCKET not set; running without GCS persistence")
+	} else {
+		gcs, err := newGCSWAL(ctx, bucket, object)
+		if err != nil {
+			log.Fatalf("gcs client: %v", err)
+		}
+		uploader = gcs
 	}
 
 	walPath := persistence.WALPath(dataDir)
-	if err := gcs.Download(ctx, walPath); err != nil {
+	if err := uploader.Download(ctx, walPath); err != nil {
 		log.Fatalf("download wal: %v", err)
 	}
 
@@ -71,15 +74,11 @@ func main() {
 		st:       st,
 		wal:      wal,
 		stats:    stats,
-		uploader: gcs,
+		uploader: uploader,
 		walPath:  walPath,
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
 	mux.HandleFunc("/ws", handler.handleWS)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -111,7 +110,7 @@ type wsHandler struct {
 	st       store.Store
 	wal      *persistence.WAL
 	stats    *stats.Stats
-	uploader *gcsWAL
+	uploader walUploader
 	walPath  string
 }
 
@@ -190,11 +189,23 @@ func encodeResponse(resp protocol.Response) ([]byte, error) {
 }
 
 type gcsWAL struct {
-	client *storage.Client
-	bucket string
-	object string
-	mu     sync.Mutex
+	client      *storage.Client
+	bucket      string
+	object      string
+	mu          sync.Mutex
+	lastUpload  time.Time
+	minInterval time.Duration
 }
+
+type walUploader interface {
+	Download(ctx context.Context, path string) error
+	Upload(ctx context.Context, path string) error
+}
+
+type noopUploader struct{}
+
+func (noopUploader) Download(_ context.Context, _ string) error { return nil }
+func (noopUploader) Upload(_ context.Context, _ string) error   { return nil }
 
 func newGCSWAL(ctx context.Context, bucket, object string) (*gcsWAL, error) {
 	client, err := storage.NewClient(ctx)
@@ -202,9 +213,10 @@ func newGCSWAL(ctx context.Context, bucket, object string) (*gcsWAL, error) {
 		return nil, err
 	}
 	return &gcsWAL{
-		client: client,
-		bucket: bucket,
-		object: object,
+		client:      client,
+		bucket:      bucket,
+		object:      object,
+		minInterval: 1 * time.Second,
 	}, nil
 }
 
@@ -244,6 +256,10 @@ func (g *gcsWAL) Upload(ctx context.Context, path string) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	if !g.lastUpload.IsZero() && time.Since(g.lastUpload) < g.minInterval {
+		return nil
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -260,9 +276,21 @@ func (g *gcsWAL) Upload(ctx context.Context, path string) error {
 	w := obj.NewWriter(ctx)
 	if _, err := io.Copy(w, f); err != nil {
 		_ = w.Close()
+		if isRateLimitErr(err) {
+			log.Printf("gcs wal upload rate limited: %v", err)
+			return nil
+		}
 		return err
 	}
-	return w.Close()
+	if err := w.Close(); err != nil {
+		if isRateLimitErr(err) {
+			log.Printf("gcs wal upload rate limited: %v", err)
+			return nil
+		}
+		return err
+	}
+	g.lastUpload = time.Now()
+	return nil
 }
 
 func getenv(key, fallback string) string {
@@ -271,4 +299,12 @@ func getenv(key, fallback string) string {
 		return fallback
 	}
 	return val
+}
+
+func isRateLimitErr(err error) bool {
+	var gerr *googleapi.Error
+	if errors.As(err, &gerr) {
+		return gerr.Code == 429
+	}
+	return strings.Contains(err.Error(), "rateLimitExceeded") || strings.Contains(err.Error(), "Error 429")
 }
